@@ -111,7 +111,11 @@ export function registerGameScene(k: KAPLAYCtx) {
 
     function advanceLevel() {
       lightning.cancel();
-      k.go("game", level.next ? level.next() : level);
+      if (level.next) {
+        k.go("game", level.next());
+      } else {
+        k.go("victory");
+      }
     }
 
     function killPlayer() {

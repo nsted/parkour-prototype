@@ -1,6 +1,8 @@
 import kaplay from "kaplay";
 import { CANVAS_WIDTH, CANVAS_HEIGHT, GRAVITY } from "./config";
 import { registerGameScene } from "./scenes/game";
+import { registerTitleScene } from "./scenes/title";
+import { registerVictoryScene } from "./scenes/victory";
 
 const k = kaplay({
   width: CANVAS_WIDTH,
@@ -16,5 +18,7 @@ k.setGravity(GRAVITY);
 k.loadSound("thunder", `${import.meta.env.BASE_URL}sfx/thunder.mp3`);
 
 registerGameScene(k);
+registerTitleScene(k);
+registerVictoryScene(k);
 
-k.go("game");
+k.go("title");

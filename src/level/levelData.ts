@@ -165,5 +165,6 @@ export const level3: LevelData = {
       ],
     },
   ],
-  next: () => level1,
+  // No next level — finishing this one is the end of the game (see
+  // advanceLevel() in game.ts, which routes to the victory screen).
 };
