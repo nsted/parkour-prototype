@@ -127,15 +127,17 @@ export function registerGameScene(k: KAPLAYCtx) {
       hud.setLives(Math.max(livesRemaining, 0));
       hud.setMessage(
         outOfLives
-          ? "GAME OVER — Press SPACE to restart"
-          : `You Died — ${livesRemaining} lives left — Press SPACE to continue`,
+          ? "GAME OVER — Press SPACE or tap to restart"
+          : `You Died — ${livesRemaining} lives left — Press SPACE or tap to continue`,
       );
       stopMusic();
     }
 
     player.onCollide("obstacle", killPlayer);
 
-    k.onKeyPress("space", () => {
+    // Shared by keyboard (space/down) and touch input below, so both
+    // control schemes drive the exact same state transitions.
+    function startJump() {
       if (phase === "dead") return restart();
       if (phase === "completed") return advanceLevel();
       if (phase !== "playing") return;
@@ -144,27 +146,78 @@ export function registerGameScene(k: KAPLAYCtx) {
         jumpHoldTime = 0;
         isHoldingJump = true;
       }
-    });
+    }
 
-    k.onKeyRelease("space", () => {
+    function endJump() {
       isHoldingJump = false;
-    });
+    }
 
-    k.onKeyDown("down", () => {
+    function startDuck() {
       if (phase !== "playing") return;
       if (player.isGrounded()) {
         player.setPlayerState("ducking");
       }
-    });
+    }
 
-    k.onKeyRelease("down", () => {
+    function endDuck() {
       if (phase !== "playing" || player.state !== "ducking") return;
       player.setPlayerState("running");
-    });
+    }
+
+    k.onKeyPress("space", startJump);
+    k.onKeyRelease("space", endJump);
+    k.onKeyDown("down", startDuck);
+    k.onKeyRelease("down", endDuck);
 
     k.onKeyPress("r", () => {
       if (phase === "dead") restart();
       else if (phase === "completed") advanceLevel();
+    });
+
+    // Touch controls: tap to jump, swipe down to duck. Each touch starts
+    // "unresolved" — a quick downward swipe (tracked per touch identifier,
+    // since multiple touches can be in flight) resolves it as a duck before
+    // a jump ever fires; otherwise it resolves as a jump either as soon as
+    // TAP_RESOLVE_MS elapses (so a held tap still feels instant) or on
+    // release, whichever comes first. This ordering matters because once a
+    // jump is triggered it can't be undone into a duck — jumping instead of
+    // ducking under an overhead bar would kill the player.
+    const SWIPE_DOWN_PX = 24;
+    const TAP_RESOLVE_MS = 90;
+    type TouchGesture = { startY: number; resolved: "jump" | "duck" | null; timer: number };
+    const activeTouches = new Map<number, TouchGesture>();
+
+    k.onTouchStart((pos, t) => {
+      const gesture: TouchGesture = { startY: pos.y, resolved: null, timer: 0 };
+      gesture.timer = window.setTimeout(() => {
+        if (gesture.resolved) return;
+        gesture.resolved = "jump";
+        startJump();
+      }, TAP_RESOLVE_MS);
+      activeTouches.set(t.identifier, gesture);
+    });
+
+    k.onTouchMove((pos, t) => {
+      const gesture = activeTouches.get(t.identifier);
+      if (!gesture || gesture.resolved) return;
+      if (pos.y - gesture.startY > SWIPE_DOWN_PX) {
+        window.clearTimeout(gesture.timer);
+        gesture.resolved = "duck";
+        startDuck();
+      }
+    });
+
+    k.onTouchEnd((_pos, t) => {
+      const gesture = activeTouches.get(t.identifier);
+      if (!gesture) return;
+      window.clearTimeout(gesture.timer);
+      if (!gesture.resolved) {
+        gesture.resolved = "jump";
+        startJump();
+      }
+      if (gesture.resolved === "jump") endJump();
+      else endDuck();
+      activeTouches.delete(t.identifier);
     });
 
     // Used for the scripted run-on/run-off animations (level intro/outro and
@@ -247,7 +300,7 @@ export function registerGameScene(k: KAPLAYCtx) {
         stepPlayerToward(transitionTarget, dt, 1 + progress * 2);
         if (player.pos.x === transitionTarget) {
           phase = "completed";
-          hud.setMessage("You made it! Press SPACE for the next level");
+          hud.setMessage("You made it! Press SPACE or tap for the next level");
           stopMusic();
         }
         return;
