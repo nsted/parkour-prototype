@@ -13,7 +13,7 @@ const k = kaplay({
 
 k.setGravity(GRAVITY);
 
-k.loadSound("thunder", "/sfx/thunder.mp3");
+k.loadSound("thunder", `${import.meta.env.BASE_URL}sfx/thunder.mp3`);
 
 registerGameScene(k);
 
